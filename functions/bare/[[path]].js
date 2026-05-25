@@ -1,4 +1,3 @@
-// Optimized Ultraviolet v3 Handshake Receiver for Cloudflare Pages
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH',
@@ -11,12 +10,12 @@ export async function onRequest(context) {
     const request = context.request;
     const url = new URL(request.url);
 
-    // Handle preflight requests instantly
+    // 1. Resolve browser preflight checks instantly
     if (request.method === 'OPTIONS') {
         return new Response(null, { status: 200, headers: CORS_HEADERS });
     }
 
-    // Extract the target URL directly after the /bare/ prefix
+    // 2. Parse out the target proxy destination from the /bare/ path marker
     const bareMarker = '/bare/';
     const bareIndex = url.pathname.indexOf(bareMarker);
     
@@ -56,15 +55,15 @@ export async function onRequest(context) {
             });
 
         } catch (err) {
-            return new Response(`Proxy Error: ${err.message}`, { status: 502, headers: CORS_HEADERS });
+            return new Response(`Proxy Routing Error: ${err.message}`, { status: 502, headers: CORS_HEADERS });
         }
     }
 
-    // FIXED: Forcing the response payload to return explicit Bare Server v3 specifications
+    // 3. Official Bare Server v3 specifications payload response
     const metadataPayload = JSON.stringify({
         versions: ["3"],
         language: "javascript",
-        memory: "cloudflare-edge"
+        memory: "cloudflare-pages-functions"
     });
 
     return new Response(metadataPayload, {
