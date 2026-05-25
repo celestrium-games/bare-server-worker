@@ -47,7 +47,7 @@ export async function onRequest(context) {
                 method: request.method,
                 headers: forwardHeaders,
                 body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
-                redirect: 'manual',
+                redirect: 'follow',
             });
 
             const responseHeaders = new Headers(CORS_HEADERS);
