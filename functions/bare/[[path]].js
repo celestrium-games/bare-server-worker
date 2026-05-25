@@ -27,6 +27,9 @@ export async function onRequest(context) {
 
     // Bare v3 fetch endpoint
     if (url.pathname.startsWith('/bare/v3/')) {
+        console.log('Headers:', JSON.stringify(Object.fromEntries(request.headers.entries())));
+        console.log('Method:', request.method);
+        console.log('URL:', url.pathname);
         try {
             const targetUrl = request.headers.get('x-bare-url');
             if (!targetUrl) {
