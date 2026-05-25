@@ -16,14 +16,13 @@ export async function onRequest(context) {
         return new Response(null, { status: 200, headers: CORS_HEADERS });
     }
 
-    // FIXED: Dynamically extract the target URL directly after the /bare/ prefix
+    // Extract the target URL directly after the /bare/ prefix
     const bareMarker = '/bare/';
     const bareIndex = url.pathname.indexOf(bareMarker);
     
     if (bareIndex !== -1) {
         let targetUrl = url.pathname.slice(bareIndex + bareMarker.length) + url.search;
         
-        // Remove duplicate slashes if the frontend accidentally sends '//http...'
         if (targetUrl.startsWith('/')) {
             targetUrl = targetUrl.slice(1);
         }
@@ -32,7 +31,6 @@ export async function onRequest(context) {
             return new Response('Missing target website payload', { status: 400, headers: CORS_HEADERS });
         }
 
-        // Standardize the protocol format
         if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
             targetUrl = 'https://' + targetUrl;
         }
@@ -62,7 +60,7 @@ export async function onRequest(context) {
         }
     }
 
-    // Return the official TompHTTP Version 3 metadata footprint to pass the initial UV handshake
+    // FIXED: Forcing the response payload to return explicit Bare Server v3 specifications
     const metadataPayload = JSON.stringify({
         versions: ["3"],
         language: "javascript",
