@@ -1,3 +1,4 @@
+// Optimized Ultraviolet v3 Handshake Receiver for Cloudflare Pages
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH',
@@ -26,8 +27,16 @@ export async function onRequest(context) {
             targetUrl = targetUrl.slice(1);
         }
 
-        if (!targetUrl) {
-            return new Response('Missing target website payload', { status: 400, headers: CORS_HEADERS });
+        // If a request hits /bare/ but has no website attached, treat it as a v3 handshake check
+        if (!targetUrl || targetUrl === '' || targetUrl === '/') {
+            return new Response(JSON.stringify({
+                versions: ["3"],
+                language: "javascript",
+                memory: "cloudflare-pages-functions"
+            }), {
+                status: 200,
+                headers: { 'content-type': 'application/json', ...CORS_HEADERS }
+            });
         }
 
         if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
@@ -59,7 +68,7 @@ export async function onRequest(context) {
         }
     }
 
-    // 3. Official Bare Server v3 specifications payload response
+    // 3. FALLBACK: Explicitly answer any root domain requests with the Bare Server v3 specifications payload
     const metadataPayload = JSON.stringify({
         versions: ["3"],
         language: "javascript",
