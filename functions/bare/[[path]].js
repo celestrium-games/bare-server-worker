@@ -1,4 +1,3 @@
-// Optimized Ultraviolet v3 Handshake Receiver for Cloudflare Pages
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH',
@@ -16,7 +15,6 @@ export async function onRequest(context) {
         return new Response(null, { status: 200, headers: CORS_HEADERS });
     }
 
-    // 2. Parse out the target proxy destination from the /bare/ path marker
     const bareMarker = '/bare/';
     const bareIndex = url.pathname.indexOf(bareMarker);
     
@@ -27,7 +25,6 @@ export async function onRequest(context) {
             targetUrl = targetUrl.slice(1);
         }
 
-        // If a request hits /bare/ but has no website attached, treat it as a v3 handshake check
         if (!targetUrl || targetUrl === '' || targetUrl === '/') {
             return new Response(JSON.stringify({
                 versions: ["3"],
@@ -44,17 +41,33 @@ export async function onRequest(context) {
         }
 
         try {
+            // Clone headers and set the outbound destination host
             const forwardHeaders = new Headers(request.headers);
             forwardHeaders.set('Host', new URL(targetUrl).host);
+            
+            // Remove cloudflare-specific headers that break downstream fetches
+            forwardHeaders.delete('cf-connecting-ip');
+            forwardHeaders.delete('cf-ipcountry');
+            forwardHeaders.delete('cf-ray');
+            forwardHeaders.delete('cf-visitor');
 
             const upstreamResponse = await fetch(targetUrl, {
                 method: request.method,
                 headers: forwardHeaders,
-                body: request.body,
+                body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
                 redirect: 'manual'
             });
 
+            // Reconstruct the response headers to clear out frame-blocking policies
             const responseHeaders = new Headers(upstreamResponse.headers);
+            
+            // CRITICAL: Strip out X-Frame-Options and Content-Security-Policy 
+            // so the target website allows itself to sit inside Celestrium's iframe frame
+            responseHeaders.delete('x-frame-options');
+            responseHeaders.delete('content-security-policy');
+            responseHeaders.delete('content-security-policy-report-only');
+
+            // Inject open access CORS parameters
             Object.keys(CORS_HEADERS).forEach(key => responseHeaders.set(key, CORS_HEADERS[key]));
 
             return new Response(upstreamResponse.body, {
@@ -68,14 +81,8 @@ export async function onRequest(context) {
         }
     }
 
-    // 3. FALLBACK: Explicitly answer any root domain requests with the Bare Server v3 specifications payload
-    const metadataPayload = JSON.stringify({
-        versions: ["3"],
-        language: "javascript",
-        memory: "cloudflare-pages-functions"
-    });
-
-    return new Response(metadataPayload, {
+    // Fallback metadata response
+    return new Response(JSON.stringify({ versions: ["3"] }), {
         status: 200,
         headers: { 'content-type': 'application/json', ...CORS_HEADERS }
     });
