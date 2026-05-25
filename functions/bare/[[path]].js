@@ -13,8 +13,8 @@ export async function onRequest(context) {
         return new Response(null, { status: 200, headers: CORS_HEADERS });
     }
 
-    // Bare v3 metadata endpoint
-    if (url.pathname === '/bare/' || url.pathname === '/bare/v3/') {
+    // Bare v3 metadata endpoint - only when no x-bare-url header present
+    if (url.pathname === '/bare/' || (url.pathname === '/bare/v3/' && !request.headers.get('x-bare-url'))) {
         return new Response(JSON.stringify({
             versions: ['v3'],
             language: 'ServiceWorker',
@@ -51,7 +51,6 @@ export async function onRequest(context) {
             });
 
             const responseHeaders = new Headers(CORS_HEADERS);
-            const exposedHeaders = [];
 
             for (const [key, value] of response.headers.entries()) {
                 if (['content-encoding', 'x-content-encoding', 'content-length'].includes(key)) continue;
