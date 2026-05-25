@@ -15,17 +15,26 @@ export async function onRequest(context) {
         return new Response(null, { status: 200, headers: CORS_HEADERS });
     }
 
-    const bareMarker = '/bare/';
-    const bareIndex = url.pathname.indexOf(bareMarker);
-    
-    if (bareIndex !== -1) {
-        let targetUrl = url.pathname.slice(bareIndex + bareMarker.length) + url.search;
+    // 2. Check if this is an Ultraviolet traffic proxy request.
+    // Ultraviolet v3 always sends an explicit 'x-bare-host' or 'x-proxy-url' header.
+    const targetHeader = request.headers.get('x-bare-forward-url') || request.headers.get('x-bare-host');
+
+    if (targetHeader || url.pathname.includes('/bare/')) {
         
-        if (targetUrl.startsWith('/')) {
-            targetUrl = targetUrl.slice(1);
+        // Extract destination URL from either the path or the header parameters
+        let targetUrl = '';
+        const bareMarker = '/bare/';
+        const bareIndex = url.pathname.indexOf(bareMarker);
+        
+        if (bareIndex !== -1) {
+            targetUrl = url.pathname.slice(bareIndex + bareMarker.length) + url.search;
+            if (targetUrl.startsWith('/')) targetUrl = targetUrl.slice(1);
+        } else if (targetHeader) {
+            targetUrl = targetHeader;
         }
 
-        if (!targetUrl || targetUrl === '' || targetUrl === '/') {
+        // If it's a bare metadata check with no real website attached, return the v3 signature
+        if (!targetUrl || targetUrl === '' || targetUrl === '/' || targetUrl === 'undefined') {
             return new Response(JSON.stringify({
                 versions: ["3"],
                 language: "javascript",
@@ -41,11 +50,10 @@ export async function onRequest(context) {
         }
 
         try {
-            // Clone headers and set the outbound destination host
             const forwardHeaders = new Headers(request.headers);
             forwardHeaders.set('Host', new URL(targetUrl).host);
             
-            // Remove cloudflare-specific headers that break downstream fetches
+            // Clean up caching and deployment loops
             forwardHeaders.delete('cf-connecting-ip');
             forwardHeaders.delete('cf-ipcountry');
             forwardHeaders.delete('cf-ray');
@@ -58,16 +66,13 @@ export async function onRequest(context) {
                 redirect: 'manual'
             });
 
-            // Reconstruct the response headers to clear out frame-blocking policies
             const responseHeaders = new Headers(upstreamResponse.headers);
             
-            // CRITICAL: Strip out X-Frame-Options and Content-Security-Policy 
-            // so the target website allows itself to sit inside Celestrium's iframe frame
+            // Strip out frame restriction instructions so it displays in your UI frame
             responseHeaders.delete('x-frame-options');
             responseHeaders.delete('content-security-policy');
             responseHeaders.delete('content-security-policy-report-only');
 
-            // Inject open access CORS parameters
             Object.keys(CORS_HEADERS).forEach(key => responseHeaders.set(key, CORS_HEADERS[key]));
 
             return new Response(upstreamResponse.body, {
@@ -81,7 +86,7 @@ export async function onRequest(context) {
         }
     }
 
-    // Fallback metadata response
+    // 3. Fallback signature verification block
     return new Response(JSON.stringify({ versions: ["3"] }), {
         status: 200,
         headers: { 'content-type': 'application/json', ...CORS_HEADERS }
